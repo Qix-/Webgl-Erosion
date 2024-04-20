@@ -116,6 +116,7 @@ const controls = {
     posTemp : vec2.fromValues(0.0,0.0),
     posPerm : vec2.fromValues(0.0,0.0),
     'Load Scene': loadScene, // A function pointer, essentially
+    'Export Heightmap': ExportHeightmap,
     'Pause/Resume' :StartGeneration,
     'ResetTerrain' : Reset,
     'setTerrainRandom':setTerrainRandom,
@@ -276,6 +277,62 @@ function Render2Texture(renderer:OpenGLRenderer, gl_context:WebGL2RenderingConte
     gl_context.bindFramebuffer(gl_context.FRAMEBUFFER,null);
 }
 
+function readTextureData(texture: WebGLTexture): Float32Array {
+    const size = simres;
+    const gl = gl_context;
+
+    // Bind the texture so we can read from it
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    // Set up a framebuffer to read the texture data
+    const framebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+
+    // Check if the framebuffer is complete
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        throw new Error('Framebuffer is not complete');
+    }
+
+    // Create a buffer to read the texture data into
+    const pixelData = new Float32Array(size * size * 4);
+    
+    // Read the pixels from the framebuffer
+    gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, pixelData);
+
+    // Clean up
+    gl.deleteFramebuffer(framebuffer);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    // Return the pixel data
+    return pixelData;
+}
+
+function ExportHeightmap() {
+    console.log("exporting height map");
+    const oldPauseGeneration = PauseGeneration;
+    PauseGeneration = true;
+    const textureData = readTextureData(read_terrain_tex);
+    PauseGeneration = oldPauseGeneration;
+
+    // Filter out just the red channel.
+    const heightData = new Float32Array(simres * simres);
+    for (let i = 0; i < simres * simres; i++) {
+        heightData[i] = textureData[i * 4];
+    }
+
+    // Convert the float data to a data URI string
+    const reader = new FileReader();
+    reader.onloadend = function() {
+        const dataURL = reader.result;                
+        const link = document.createElement('a');
+        link.href = <string>dataURL;
+        link.download = 'heightmap.bin';
+        link.click();
+    }
+    reader.readAsDataURL(new Blob([heightData.buffer], { type: 'application/octet-stream' }));
+}
 
 
 function SimulatePerStep(renderer:OpenGLRenderer,
@@ -1230,6 +1287,7 @@ function main() {
   const gui = new DAT.GUI();
     var simcontrols = gui.addFolder('Simulation Controls');
     simcontrols.add(controls,'Pause/Resume');
+    simcontrols.add(controls,'Export Heightmap');
     simcontrols.add(controls,'SimulationSpeed',{fast:3,medium : 2, slow : 1});
     simcontrols.open();
     var terrainParameters = gui.addFolder('Terrain Parameters');
@@ -1264,7 +1322,7 @@ function main() {
     var terraineditor = gui.addFolder('Terrain Editor');
     terraineditor.add(controls,'brushType',{NoBrush : 0, TerrainBrush : 1, WaterBrush : 2});
     terraineditor.add(controls,'brushSize',0.1, 20.0);
-    terraineditor.add(controls,'brushStrenth',0.1,2.0);
+    terraineditor.add(controls,'brushStrenth',0.1,10.0);
     terraineditor.add(controls,'brushOperation', {Add : 0, Subtract : 1});
     terraineditor.open();
     var renderingpara = gui.addFolder('Rendering Parameters');

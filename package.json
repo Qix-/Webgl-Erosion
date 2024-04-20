@@ -15,8 +15,10 @@
     "webpack-glsl-loader": "^1.0.1"
   },
   "dependencies": {
+    "@jimp/tiff": "^0.22.12",
     "dat-gui": "^0.5.0",
     "gl-matrix": "^2.4.0",
+    "jimp": "^0.22.12",
     "mouse-change": "^1.4.0",
     "stats-js": "^1.0.1",
     "three": "^0.125.2",
